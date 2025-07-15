@@ -135,6 +135,10 @@ enum trap_return handle_smc(struct trap_context *ctx)
 		regs[0] = psci_dispatch(ctx);
 		break;
 
+    /* [ffr] 20250602  Hack to handle Trusted OS calls. For now, simply ignore them. */
+    case 50:
+        break;
+
 	default:
 		ret = TRAP_UNHANDLED;
 	}
