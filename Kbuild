@@ -20,7 +20,8 @@ export INC_CONFIG_H
 define filechk_config_mk
 (									\
 	echo "\$$(foreach config,\$$(filter CONFIG_%, \$$(.VARIABLES)), \
-			  \$$(eval undefine \$$(config)))";		\
+			  \$$(if \$$(findstring \$$(config),\$$(CONFIG_KEEP)),, \
+			  \$$(eval undefine \$$(config))))";		\
 	if [ -f $(INC_CONFIG_H) ]; then	\
 		sed -e "/^#define \([^[:space:]]*\)[[:space:]]*1/!d;	\
 		        s/^#define \([^[:space:]]*\)[[:space:]]*1/\1=y/"\
@@ -28,6 +29,11 @@ define filechk_config_mk
 	fi								\
 )
 endef
+
+# A list of the few CONFIG_'s which we will keep during the hypervisor build ...
+CONFIG_KEEP := \
+	CONFIG_VENDOR \
+	CONFIG_SOC
 
 GEN_CONFIG_MK := $(obj)/hypervisor/include/generated/config.mk
 export GEN_CONFIG_MK

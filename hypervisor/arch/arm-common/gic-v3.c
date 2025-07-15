@@ -136,18 +136,31 @@ static int gicv3_init(void)
 	if (!(mmio_read32(gicd_base + GICD_CTLR) & GICD_CTLR_ARE_NS))
 		return trace_error(-EIO);
 
-	last_gicr = system_config->root_cell.cpu_set_size * 8 - 1;
-	while (!cpu_id_valid(last_gicr))
-		last_gicr--;
+    /* [ffr] 20250605 Allow for specifying the GIC redistributer size in */
+    /* the system configuration since the GIC redistributers may not be  */
+    /* consecutive for a consecutive range of CPU's.                     */
+    last_gicr = system_config->root_cell.cpu_set_size * 8 - 1;
+    while (!cpu_id_valid(last_gicr))
+    {
+        last_gicr--;
+    }
 
-	/*
-	 * Let the per-cpu code access the redistributors. This makes the
-	 * assumption, that redistributors can be found in a sequence.
-	 */
-	if (gic_version == 4)
-		redist_size = GIC_V4_REDIST_SIZE;
+    if (system_config->platform_info.arm.gicr_size == 0)
+    {
+        /*
+         * Let the per-cpu code access the redistributors. This makes the
+         * assumption, that redistributors can be found in a sequence.
+        */
+        if (gic_version == 4)
+            redist_size = GIC_V4_REDIST_SIZE;
 
-	gicr_size = redist_size * (last_gicr + 1);
+        gicr_size = redist_size * (last_gicr + 1);
+    }
+    else
+    {
+        gicr_size = system_config->platform_info.arm.gicr_size;
+    }
+
 	gicr_base = paging_map_device(
 			system_config->platform_info.arm.gicr_base, gicr_size);
 	if (!gicr_base)
@@ -225,7 +238,7 @@ static int gicv3_cpu_init(struct per_cpu *cpu_data)
 			break;
 
 		typer = mmio_read64(redist_base + GICR_TYPER);
-		if ((typer >> 32) == aff) {
+        if ((typer >> 32) == aff) {
 			cpu_data->public.gicr.base = redist_base;
 			cpu_data->public.gicr.phys_addr = redist_addr;
 			break;
