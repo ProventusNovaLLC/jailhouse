@@ -107,6 +107,7 @@ struct jailhouse_cell_desc {
 	__u32 num_pci_devices;
 	__u32 num_pci_caps;
 	__u32 num_stream_ids;
+	__u32 num_vendors;
 
 	__u32 vpci_irq_base;
 
@@ -315,6 +316,32 @@ struct jailhouse_pio {
 		.length = __length,	\
 	}
 
+/* Vendor specific descriptions ... */
+#define JAILHOUSE_VENDOR_ILLEGAL  (0ULL)
+#define JAILHOUSE_VENDOR_MTK_EINT (1ULL)
+#define JAILHOUSE_VENDOR_MTK_GPIO (2ULL)
+
+#define JAILHOUSE_VENDOR_MTK_EINT_PINMAP_SIZE  4
+#define JAILHOUSE_VENDOR_MTK_GPIO_PINMAP_SIZE  4
+
+struct jailhouse_vendor
+{
+	__u32 type;
+
+	union {
+		struct {
+			__u64 address;
+			__u32 pin_base;
+			__u32 pin_bitmap [JAILHOUSE_VENDOR_MTK_EINT_PINMAP_SIZE];
+		} __attribute__((packed)) mtk_eint;
+		struct {
+			__u64 address;
+			__u32 pin_base;
+			__u32 pin_bitmap [JAILHOUSE_VENDOR_MTK_GPIO_PINMAP_SIZE];
+		} __attribute__((packed)) mtk_gpio;
+	} __attribute__((packed));
+} __attribute__((packed));
+
 #define JAILHOUSE_SYSTEM_SIGNATURE	"JHSYS"
 
 /*
@@ -363,6 +390,7 @@ struct jailhouse_system {
 				u64 gich_base;
 				u64 gicv_base;
 				u64 gicr_base;
+                u32 gicr_size;
 			} __attribute__((packed)) arm;
 		} __attribute__((packed));
 	} __attribute__((packed)) platform_info;
@@ -380,7 +408,8 @@ jailhouse_cell_config_size(struct jailhouse_cell_desc *cell)
 		cell->num_pio_regions * sizeof(struct jailhouse_pio) +
 		cell->num_pci_devices * sizeof(struct jailhouse_pci_device) +
 		cell->num_pci_caps * sizeof(struct jailhouse_pci_capability) +
-		cell->num_stream_ids * sizeof(__u32);
+		cell->num_stream_ids * sizeof(__u32) +
+		cell->num_vendors * sizeof (struct jailhouse_vendor);
 }
 
 static inline __u32
@@ -450,6 +479,14 @@ jailhouse_cell_stream_ids(const struct jailhouse_cell_desc *cell)
 	return (const union jailhouse_stream_id *)
 		((void *)jailhouse_cell_pci_caps(cell) +
 		cell->num_pci_caps * sizeof(struct jailhouse_pci_capability));
+}
+
+static inline const struct jailhouse_vendor *
+jailhouse_cell_vendors(const struct jailhouse_cell_desc *cell)
+{
+	return (const struct jailhouse_vendor *)
+		((void *)jailhouse_cell_stream_ids(cell) +
+		cell->num_stream_ids * sizeof(__u32));
 }
 
 #endif /* !_JAILHOUSE_CELL_CONFIG_H */
