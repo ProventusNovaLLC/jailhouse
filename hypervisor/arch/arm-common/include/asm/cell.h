@@ -15,13 +15,18 @@
 
 #include <jailhouse/paging.h>
 
+
 struct pvu_tlb_entry;
 
 struct arch_cell {
 	struct paging_structures mm;
 
-	u32 irq_bitmap[1024/32];
+	u32 irq_bitmap[1152/32];
 
+#ifdef CONFIG_VENDOR_MEDIATEK
+	u32 eint_bitmap [256 / 32];
+	u32 gpio_bitmap [256 / 32];
+#endif
 	struct {
 		u8 ent_count;
 		struct pvu_tlb_entry *entries;
