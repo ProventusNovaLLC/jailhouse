@@ -17,8 +17,8 @@ struct {
 	struct jailhouse_cell_desc cell;
 	__u64 cpus[1];
 	struct jailhouse_memory mem_regions[3];
-	struct jailhouse_irqchip irqchips[1];
-	struct jailhouse_vendor vendors[3];
+	struct jailhouse_irqchip irqchips[2];
+	struct jailhouse_vendor vendors[2];
 } __attribute__((packed)) config = {
 	.cell = {
 		.signature = JAILHOUSE_CELL_DESC_SIGNATURE,
@@ -47,25 +47,24 @@ struct {
 	},
 
 	.mem_regions = {
-		/* UART2 */
-        {
+		/* UART1 */ {
 			.phys_start = 0x11001200,
 			.virt_start = 0x11001200,
-			.size       = 0x1000,
-			.flags      = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_IO | JAILHOUSE_MEM_ROOTSHARED,
+			.size = 0x0100,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_IO | JAILHOUSE_MEM_ROOTSHARED | JAILHOUSE_MEM_IO_32,
 		},
-		/* Inmate memory: 0x67000000 - 0x67200000 */
+		/* Inmate memory: 0x68000000 - 0x68200000 */
 		{
-			.phys_start = 0x67000000,
+			.phys_start = 0x68000000,
 			.virt_start = CONFIG_INMATE_BASE,
-			.size       = 0x00200000,
-			.flags      = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_EXECUTE | JAILHOUSE_MEM_LOADABLE,
+			.size = 0x00200000,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_EXECUTE | JAILHOUSE_MEM_LOADABLE,
 		},
 		/* Communication region */
 		{
 			.virt_start = 0x80000000,
-			.size       = 0x00001000,
-			.flags      = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_COMM_REGION,
+			.size = 0x00001000,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_COMM_REGION,
 		},
 	},
 
@@ -73,10 +72,17 @@ struct {
 		/* GIC */
 		{
 			.address    = 0x0c000000,
-			.pin_base   = 32,
+			.pin_base   = 160,
 			.pin_bitmap = {
-				0x00000000, 0x00000010, 0x00000000, 0x00080000, /* UART2 IRQ    --> SPI 68 */
-                                                                /* GPIO 106 IRQ --> SPI 147 */
+				0x00004000, 0x00000000, 0x00000000, 0x00000000	/* UART2 IRQ --> SPI 142+32 */
+            /* I2S IRQ --> SPI 822 */
+			},
+		},
+		{
+			.address    = 0x0c000000,
+			.pin_base   = 256,
+			.pin_bitmap = {
+				0x00000800, 0x00000000, 0x00000000, 0x00000000	/* EINT IRQ --> SPI 235+32 */
 			},
 		},
 	},
@@ -85,9 +91,9 @@ struct {
 		{
 			.type = JAILHOUSE_VENDOR_MTK_EINT,
 			.mtk_eint.address    = 0x1000b000,
-			.mtk_eint.pin_base   = 96,
+			.mtk_eint.pin_base   = 32,
 			.mtk_eint.pin_bitmap = {
-				0x00000c00, 0x00000000, 0x00000000, 0x00000000	/* EINT 106 & 107 */
+				0x00000140, 0x00000000, 0x00000000, 0x00000000	/* GPIO 38 & 40 */
 			}
 		},
 		{
@@ -95,16 +101,19 @@ struct {
 			.mtk_gpio.address    = 0x10005000,
 			.mtk_gpio.pin_base   = 32,
 			.mtk_gpio.pin_bitmap = {
-				0x00000006, 0x00000000, 0x00000000, 0x00000000	/* Pins 33 & 34 for UART1 */
+				0x00000146, 0x00000000, 0x00000000, 0x00000000	/* Pins 33 & 34 for UART1; GPIO 38 & 40 */
 			}
-		},
+		}
+/*
+		,
 		{
 			.type = JAILHOUSE_VENDOR_MTK_GPIO,
 			.mtk_gpio.address    = 0x10005000,
 			.mtk_gpio.pin_base   = 96,
 			.mtk_gpio.pin_bitmap = {
-				0x00000c00, 0x00000000, 0x00000000, 0x00000000	/* Pins 106 & 107 for GPIO */
+				0x00000140, 0x00000000, 0x00000000, 0x00000000	/ * GPIO 38 & 40 * /
 			}
 		}
+*/
 	},
 };
