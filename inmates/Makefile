@@ -17,8 +17,13 @@ export INMATES_LIB
 
 INCLUDES := -I$(INMATES_LIB) \
 	    -I$(src)/../include/arch/$(SRCARCH) \
-	    -I$(src)/lib/include \
-	    -I$(src)/../include
+	    -I$(src)/lib/include
+
+ifneq ($(CONFIG_SOC),)
+INCLUDES += -I$(src)/lib/include/$(CONFIG_SOC)
+endif
+
+INCLUDES += -I$(src)/../include
 
 LINUXINCLUDE  := $(INCLUDES)
 KBUILD_AFLAGS := -D__ASSEMBLY__ -fno-PIE

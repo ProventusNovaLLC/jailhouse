@@ -12,7 +12,11 @@
 
 include $(INMATES_LIB)/Makefile.lib
 
-INMATES := gic-demo.bin uart-demo.bin int-latency.bin ivshmem-demo.bin
+INMATES := gic-demo.bin uart-demo.bin ivshmem-demo.bin
+
+ifneq ($(CONFIG_SOC),)
+INMATES += int-latency.bin
+endif
 
 gic-demo-y	:= ../arm/gic-demo.o
 uart-demo-y	:= ../arm/uart-demo.o
