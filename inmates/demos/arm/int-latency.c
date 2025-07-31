@@ -18,7 +18,7 @@
 #include "int-latency.h"
 
 
-#define GPIO_OUT_CNT_INIT  (20000)
+#define GPIO_OUT_CNT_INIT  (10)
 
 
 static volatile unsigned int gpio_out_cnt = 0;
