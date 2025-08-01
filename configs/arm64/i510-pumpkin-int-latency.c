@@ -1,5 +1,5 @@
 /*
- * i350-Pumpkin target - int-latency
+ * i510-Pumpkin target - int-latency
  *
  * Copyright 2025 MediaTek
  *

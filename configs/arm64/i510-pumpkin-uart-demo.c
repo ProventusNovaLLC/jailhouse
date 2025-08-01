@@ -1,5 +1,5 @@
 /*
- * i350-Pumpkin target - uart-demo
+ * i510-Pumpkin target - uart-demo
  *
  * Copyright 2025 MediaTek
  *
