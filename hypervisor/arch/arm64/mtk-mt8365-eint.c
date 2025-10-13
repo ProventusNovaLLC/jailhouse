@@ -366,7 +366,7 @@ static void handle_rw_access (struct mmio_access*  mmio,
 
             mmio->value |= (curr_mmio.value & ~ (bitmap));
 
-            mmio_perform_access (virt_addr, &curr_mmio);
+            mmio_perform_access (virt_addr, mmio);
         	spin_unlock (&lock);
         }
     }
