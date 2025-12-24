@@ -28,7 +28,7 @@ struct {
 		.architecture = JAILHOUSE_ARM64,
 		.flags = JAILHOUSE_SYS_VIRTUAL_DEBUG_CONSOLE,
 		.hypervisor_memory = {
-			.phys_start = 0x67c00000,
+			.phys_start = 0x6ac00000,
 			.size       = 0x00400000,
 		},
 		.debug_console = {
@@ -80,7 +80,7 @@ struct {
 		/* DMA Pool:       0x0000'0000'60f0'0000 - 0x0000'0000'6100'0000 */
 		/* DMA Pool:       0x0000'0000'6100'0000 - 0x0000'0000'6110'0000 */
 		/* Linux kernel:   0x0000'0000'6400'0000 - 0x0000'0000'66bc'0000 */
-		/* Hypervisor:     0x0000'0000'67c0'0000 - 0x0000'0000'6800'0000 */
+		/* Hypervisor:     0x0000'0000'6ac0'0000 - 0x0000'0000'6b00'0000 */
 
 		/* MMIO:  0x0000'0000'0000'0000 - 0x0000'0000'0c00'0000 */
 		{
@@ -176,26 +176,26 @@ struct {
 			.size = 0x01100000,
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE
 		},
-		/* DRAM:  0x0000'0000'6110'0000 - 0x0000'0000'67c0'0000 */
+		/* DRAM:  0x0000'0000'6110'0000 - 0x0000'0000'6ac0'0000 */
 		{
 			.phys_start = 0x61100000,
 			.virt_start = 0x61100000,
-			.size = 0x06b00000,
+			.size = 0x09b00000,
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_EXECUTE
 		},
-		/* JAILHOUSE Hypevisor:  0x0000'0000'67c0'0000 - 0x0000'0000'6800'0000 */
-		/* Inmate memory:        0x0000'0000'6800'0000 - 0x0000'0000'6880'0000 */
+		/* JAILHOUSE Hypevisor:  0x0000'0000'6ac0'0000 - 0x0000'0000'6b00'0000 */
+		/* Inmate memory:        0x0000'0000'6b00'0000 - 0x0000'0000'6b80'0000 */
 		{
-			.phys_start = 0x68000000,
-			.virt_start = 0x68000000,
+			.phys_start = 0x6b000000,
+			.virt_start = 0x6b000000,
 			.size = 0x00800000,
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_EXECUTE
 		},
-		/* DRAM:  0x0000'0000'6880'0000 - 0x0000'0001'4000'0000 */
+		/* DRAM:  0x0000'0000'6b80'0000 - 0x0000'0001'4000'0000 */
 		{
-			.phys_start = 0x68800000,
-			.virt_start = 0x68800000,
-			.size = 0xd7800000,
+			.phys_start = 0x6b800000,
+			.virt_start = 0x6b800000,
+			.size = 0xd4800000,
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_EXECUTE
 		},
 	},
