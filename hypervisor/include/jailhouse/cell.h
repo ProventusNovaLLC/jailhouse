@@ -46,6 +46,9 @@ struct cell {
 	/** Stores the cell's CPU set if small enough. */
 	struct cpu_set small_cpu_set;
 
+    /* Allowed SMC IDs */
+    __u32 *smc_ids;
+
 	/** True while the cell can be loaded by the root cell. */
 	bool loadable;
 

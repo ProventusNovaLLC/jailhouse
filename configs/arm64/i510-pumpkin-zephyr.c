@@ -16,6 +16,7 @@
 struct {
 	struct jailhouse_cell_desc cell;
 	__u64 cpus[1];
+    __u32 smc_ids [1];
 	struct jailhouse_memory mem_regions[3];
 	struct jailhouse_irqchip irqchips[1];
 	struct jailhouse_vendor vendors[3];
@@ -28,6 +29,7 @@ struct {
 		.flags        = JAILHOUSE_CELL_PASSIVE_COMMREG | JAILHOUSE_CELL_VIRTUAL_CONSOLE_PERMITTED,
 
 		.cpu_set_size       = sizeof(config.cpus),
+		.smc_ids_size       = ARRAY_SIZE(config.smc_ids),
 		.num_memory_regions = ARRAY_SIZE(config.mem_regions),
 		.num_irqchips       = ARRAY_SIZE(config.irqchips),
 		.num_vendors        = ARRAY_SIZE(config.vendors),
@@ -45,6 +47,10 @@ struct {
 	.cpus = {
 		0b001000,
 	},
+
+    .smc_ids = {
+        0xc2000517,     /* MTK_SIP_AUDIO_CONTROL */
+    },
 
 	.mem_regions = {
 		/* UART1 */

@@ -242,7 +242,10 @@ int cell_init(struct cell *cell)
 {
 	const unsigned long *config_cpu_set =
 		jailhouse_cell_cpu_set(cell->config);
+	const __u32 *config_smc_ids =
+		jailhouse_cell_smc_ids(cell->config);
 	unsigned long cpu_set_size = cell->config->cpu_set_size;
+	unsigned long smc_ids_size = cell->config->smc_ids_size;
 	struct cpu_set *cpu_set;
 	int err;
 
@@ -260,16 +263,41 @@ int cell_init(struct cell *cell)
 
 	cell->cpu_set = cpu_set;
 
-	err = mmio_cell_init(cell);
-	if (err && cell->cpu_set != &cell->small_cpu_set)
-		page_free(&mem_pool, cell->cpu_set, 1);
+    /* Initialize the SMC ID array */
+    cell->smc_ids = NULL;
+    if (smc_ids_size > 0) {
+		cell->smc_ids = page_alloc(&mem_pool, 1);
+        
+        /* Handle out of memory. */
+        if (!cell->smc_ids) {
+            if (cell->cpu_set != &cell->small_cpu_set)
+                page_free(&mem_pool, cell->cpu_set, 1);
+            return -ENOMEM;
+        }
 
+        memcpy(cell->smc_ids, config_smc_ids, smc_ids_size * sizeof(__u32));
+    }
+
+	err = mmio_cell_init(cell);
+	if (err) {
+        if (cell->smc_ids) {
+            page_free(&mem_pool, cell->smc_ids, 1);
+        }
+        
+        if (cell->cpu_set != &cell->small_cpu_set) {
+            page_free(&mem_pool, cell->cpu_set, 1);
+        }
+    }  
 	return err;
 }
 
 static void cell_exit(struct cell *cell)
 {
 	mmio_cell_exit(cell);
+
+    if (cell->smc_ids) {
+        page_free(&mem_pool, cell->smc_ids, 1);
+    }
 
 	if (cell->cpu_set != &cell->small_cpu_set)
 		page_free(&mem_pool, cell->cpu_set, 1);

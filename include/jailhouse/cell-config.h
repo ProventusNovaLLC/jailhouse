@@ -100,6 +100,7 @@ struct jailhouse_cell_desc {
 	__u32 flags;
 
 	__u32 cpu_set_size;
+    __u32 smc_ids_size;
 	__u32 num_memory_regions;
 	__u32 num_cache_regions;
 	__u32 num_irqchips;
@@ -402,6 +403,7 @@ jailhouse_cell_config_size(struct jailhouse_cell_desc *cell)
 {
 	return sizeof(struct jailhouse_cell_desc) +
 		cell->cpu_set_size +
+        cell->smc_ids_size +
 		cell->num_memory_regions * sizeof(struct jailhouse_memory) +
 		cell->num_cache_regions * sizeof(struct jailhouse_cache) +
 		cell->num_irqchips * sizeof(struct jailhouse_irqchip) +
@@ -426,11 +428,19 @@ jailhouse_cell_cpu_set(const struct jailhouse_cell_desc *cell)
 		sizeof(struct jailhouse_cell_desc));
 }
 
+static inline const __u32 *
+jailhouse_cell_smc_ids(const struct jailhouse_cell_desc *cell)
+{
+	return (const __u32 *)
+		((void *)jailhouse_cell_cpu_set(cell) + cell->cpu_set_size);
+}
+
 static inline const struct jailhouse_memory *
 jailhouse_cell_mem_regions(const struct jailhouse_cell_desc *cell)
 {
 	return (const struct jailhouse_memory *)
-		((void *)jailhouse_cell_cpu_set(cell) + cell->cpu_set_size);
+		((void *)jailhouse_cell_smc_ids(cell) + 
+        cell->smc_ids_size * sizeof (__u32));
 }
 
 static inline const struct jailhouse_cache *

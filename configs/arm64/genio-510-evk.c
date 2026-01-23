@@ -18,6 +18,7 @@
 struct {
 	struct jailhouse_system header;
 	__u64 cpus[1];
+    __u32 smc_ids [12];
 	struct jailhouse_memory mem_regions[16];
 	struct jailhouse_irqchip irqchips[8];
 	struct jailhouse_vendor vendors[4];
@@ -50,6 +51,7 @@ struct {
 			.name = "genio-510-evk",
 
 			.cpu_set_size = sizeof(config.cpus),
+			.smc_ids_size = ARRAY_SIZE(config.smc_ids),
 			.num_memory_regions = ARRAY_SIZE(config.mem_regions),
 			.num_irqchips = ARRAY_SIZE(config.irqchips),
 			.num_vendors = ARRAY_SIZE(config.vendors),
@@ -60,6 +62,22 @@ struct {
 	.cpus = {
 		0b111111,
 	},
+
+    /* SMC IDs for MediaTek-specific SIP calls */
+    .smc_ids = {
+        0xc2000202,     /* MTK_SIP_KERNEL_TIME_SYNC */
+        0xc2000205,     /* MTK_SIP_KERNEL_DFD */
+        0xc2000273,     /* MTK_SIP_KERNEL_MSDC */
+        0xc2000506,     /* MTK_SIP_VCORE_CONTROL */
+        0xc2000507,     /* MTK_SIP_MTK_LPM_CONTROL */
+        0xc2000514,     /* MTK_SIP_IOMMU_CONTROL */
+        0xc2000517,     /* MTK_SIP_AUDIO_CONTROL */
+        0xc200051C,     /* MTK_SIP_DISP_CONTROL */
+        0xc200051E,     /* MTK_SIP_APUSYS_CONTROL */
+        0xc2000523,     /* MTK_SIP_DP_CONTROL */
+        0xc2000526,     /* MTK_SIP_KERNEL_GIC_OP */
+        0xc2000529,     /* MTK_SIP_PLAT_BINFO */
+    },
 
 	.mem_regions = {
 		/* MMIO:           0x0000'0000'0000'0000 - 0x0000'0000'0c00'0000 */

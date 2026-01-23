@@ -72,7 +72,7 @@ int smccc_discover(void)
 	return 0;
 }
 
-static void trust_dispatch(struct trap_context *ctx)
+static long trust_dispatch(struct trap_context *ctx)
 {
 #ifdef __aarch64__
 	register unsigned long x0 asm("x0") = ctx->regs[0];
@@ -91,10 +91,13 @@ static void trust_dispatch(struct trap_context *ctx)
 		      : "x8", "x9", "x10", "x11", "x12",
 		      "x13", "x14", "x15", "x16", "x17" );
 
-	ctx->regs[0] = x0;
 	ctx->regs[1] = x1;
 	ctx->regs[2] = x2;
 	ctx->regs[3] = x3;
+
+    return x0;
+#else
+    return ARM_SMCCC_NOT_SUPPORTED;
 #endif
 }
 
@@ -143,6 +146,15 @@ static enum trap_return handle_arch(struct trap_context *ctx)
 
 long __attribute__((weak)) sip_dispatch(struct trap_context *ctx)
 {
+    size_t idx = 0;
+	struct cell *cell = this_cell();
+
+    for (idx = 0; idx < cell->config->smc_ids_size; idx++) {
+        if (ctx->regs[0] == cell->smc_ids[idx]) {
+            return trust_dispatch(ctx);
+        }
+    }
+
 	return ARM_SMCCC_NOT_SUPPORTED;
 }
 
@@ -169,7 +181,7 @@ enum trap_return handle_smc(struct trap_context *ctx)
 
 	case ARM_SMCCC_OWNER_TRUSTED_APP ... ARM_SMCCC_OWNER_TRUSTED_APP_END:
 	case ARM_SMCCC_OWNER_TRUSTED_OS ... ARM_SMCCC_OWNER_TRUSTED_OS_END:
-		trust_dispatch(ctx);
+		regs[0] = trust_dispatch(ctx);
 		break;
 
 	default:
