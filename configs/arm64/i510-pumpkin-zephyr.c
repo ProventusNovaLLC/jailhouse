@@ -96,6 +96,14 @@ struct {
 			}
 		},
 		{
+			.type = JAILHOUSE_VENDOR_MTK_EINT,
+			.mtk_eint.address    = 0x1000b000,
+			.mtk_eint.pin_base   = 128,
+			.mtk_eint.pin_bitmap = {
+				0x00000000, 0x00000100, 0x00000000, 0x00000000  /* [ffr] FIX ME! EINT 168 */
+			}
+		},
+		{
 			.type = JAILHOUSE_VENDOR_MTK_GPIO,
 			.mtk_gpio.address    = 0x10005000,
 			.mtk_gpio.pin_base   = 0,
