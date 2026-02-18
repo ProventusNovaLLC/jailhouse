@@ -72,6 +72,13 @@ typedef struct
     const access_descr_t*  access_descr;
 }   access_descr_map_t;
 
+typedef struct
+{
+    u32  reg;
+    u32  size;
+    u32  mask;
+}   irq_descr_map_t;
+
 
 static inline u32 get_access_type (access_descr_t  access_descr)
 {

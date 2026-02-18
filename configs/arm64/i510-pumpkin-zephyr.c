@@ -19,7 +19,7 @@ struct {
     __u32 smc_ids [1];
 	struct jailhouse_memory mem_regions[3];
 	struct jailhouse_irqchip irqchips[1];
-	struct jailhouse_vendor vendors[3];
+	struct jailhouse_vendor vendors[2];
 } __attribute__((packed)) config = {
 	.cell = {
 		.signature    = JAILHOUSE_CELL_DESC_SIGNATURE,
@@ -93,14 +93,6 @@ struct {
 			.mtk_eint.pin_base   = 0,
 			.mtk_eint.pin_bitmap = {
 				0x00000003, 0x00000000, 0x00000000, 0x00000000	/* EINT 0 & 1 */
-			}
-		},
-		{
-			.type = JAILHOUSE_VENDOR_MTK_EINT,
-			.mtk_eint.address    = 0x1000b000,
-			.mtk_eint.pin_base   = 128,
-			.mtk_eint.pin_bitmap = {
-				0x00000000, 0x00000100, 0x00000000, 0x00000000  /* [ffr] FIX ME! EINT 168 */
 			}
 		},
 		{

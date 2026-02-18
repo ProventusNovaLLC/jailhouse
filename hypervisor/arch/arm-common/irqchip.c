@@ -29,6 +29,15 @@
 	     (counter) < (config)->num_irqchips;			\
 	     (chip)++, (counter)++)
 
+
+#define IRQ_HANDLER_LIST_SIZE  4
+typedef struct
+{
+    u16 irq_id;
+
+    irq_handler_fct irq_handler;
+}   irq_handler_t;
+
 spinlock_t dist_lock;
 
 void *gicd_base;
@@ -41,6 +50,45 @@ static bool irqchip_is_init;
 
 static struct irqchip irqchip;
 
+static irq_handler_t irq_handler_list [IRQ_HANDLER_LIST_SIZE];
+
+static size_t curr_irq_handler_list_idx = 0;
+
+
+static size_t find_irq_handler(u16 irq_id)
+{
+    size_t idx = 0;
+
+
+    while (idx < curr_irq_handler_list_idx) {
+        if (irq_handler_list [idx].irq_id == irq_id) {
+            return (idx);
+        }
+
+        idx++;
+    }
+
+    return (idx);
+}
+
+static u32 get_irq_handler_bit_map(u32 irq_base)
+{
+    u32 bit_map = 0;
+    size_t idx = 0;
+
+
+    while (idx < curr_irq_handler_list_idx)
+    {
+        if ((irq_handler_list [idx].irq_id >= irq_base)        &&
+            (irq_handler_list [idx].irq_id < (irq_base + 32))) {
+            bit_map |= 1 << (irq_handler_list [idx].irq_id - irq_base);
+        }
+
+        idx++;
+    }
+
+    return (bit_map);
+}
 /*
  * Most of the GIC distributor writes only reconfigure the IRQs corresponding to
  * the bits of the written value, by using separate `set' and `clear' registers.
@@ -180,6 +228,7 @@ void irqchip_handle_irq(void)
 	unsigned int count_event = 1;
 	bool handled = false;
 	u32 irq_id;
+    size_t idx;
 
 	while (1) {
 		/* Read IAR1: set 'active' state */
@@ -194,7 +243,22 @@ void irqchip_handle_irq(void)
 			handled = true;
 		} else {
 			isb();
-			handled = arch_handle_phys_irq(irq_id, count_event);
+
+            /* If a IRQ handler is found let the handler determine how */
+            /* to process / forward the IRQ. If it cannot perform the  */
+            /* handling simply let the default handler do the work.    */
+            idx = find_irq_handler (irq_id);
+            if ((idx < curr_irq_handler_list_idx)              &&
+                (irq_handler_list [idx].irq_handler (irq_id))) {
+                /* if the IRQ handler returns true then the IRQ was injected into */
+                /* a cell's CPU but has not been handled yet. hence, 'handled'    */
+                /* MUST be set to false, the same way as 'arch_handle_phys_irq()' */
+                /* returns false when an IRQ is injected to a cells CPU.          */
+                handled = false;
+            } else {
+                /* Default IRQ handling. */
+                handled = arch_handle_phys_irq(irq_id, count_event);
+            }
 		}
 		count_event = 0;
 
@@ -452,7 +516,7 @@ static int irqchip_cell_init(struct cell *cell)
 			continue;
 		for (pos = 0; pos < ARRAY_SIZE(chip->pin_bitmap); pos++)
 			root_cell.arch.irq_bitmap[chip->pin_base / 32 + pos] &=
-				~chip->pin_bitmap[pos];
+				~(chip->pin_bitmap[pos] & ~(get_irq_handler_bit_map(chip->pin_base + (pos * 32))));
 	}
 
 	return 0;
@@ -532,6 +596,69 @@ static unsigned int irqchip_mmio_count_regions(struct cell *cell)
 		regions += hypervisor_header.online_cpus;
 
 	return regions;
+}
+
+int irqchip_register_irq_handler (u16 irq_id, irq_handler_fct irq_handler)
+{
+    /* There must be a valid IRQ handler specified. */
+    if ((is_sgi (irq_id))                                            ||
+        (irq_id == system_config->platform_info.arm.maintenance_irq) ||
+        (irq_handler == NULL)) {
+        return (-EINVAL);
+    }
+
+    /* No duplicate IRQ handlers are allowed. */
+    if (find_irq_handler (irq_id) < curr_irq_handler_list_idx) {
+        return (-EEXIST);
+    }
+
+    /* Since 'irqchip_register_irq_handler ()' is only called during */
+    /* hypervisor startup when a unit's initialization function is   */
+    /* being executed and only one CPU is active we do not need to   */
+    /* protect 'curr_irq_handler_list_idx'.                          */
+    if (curr_irq_handler_list_idx >= IRQ_HANDLER_LIST_SIZE) {
+        return (-EBUSY);
+    }
+
+    irq_handler_list [curr_irq_handler_list_idx].irq_id      = irq_id;
+    irq_handler_list [curr_irq_handler_list_idx].irq_handler = irq_handler;
+
+    curr_irq_handler_list_idx++;
+
+	printk("Registered IRQ handler for: %d\n", irq_id);
+
+    return (0);
+}
+
+void irqchip_unregister_irq_handler (u16 irq_id)
+{
+    size_t idx;
+
+
+    if (! (is_sgi (irq_id))) {
+        /* Find the IRQ handler entry based on the IRQ id. */
+        idx = find_irq_handler (irq_id);
+
+        /* Since 'irqchip_unregister_irq_handler ()' is only called during */
+        /* hypervisor shutdown when a unit's shutdown function is being    */
+        /* executed and only one CPU is active we do not need to protect   */
+        /* 'curr_irq_handler_list_idx'.                                    */
+        if (idx < curr_irq_handler_list_idx) {
+            /* Shift all entries downward and cleanout the new last entry. */
+            while ((idx+1) < curr_irq_handler_list_idx)
+            {
+                irq_handler_list [idx].irq_id      = irq_handler_list [idx+1].irq_id;
+                irq_handler_list [idx].irq_handler = irq_handler_list [idx+1].irq_handler;
+
+                idx++;
+            }
+
+            irq_handler_list [idx].irq_id      = 0;
+            irq_handler_list [idx].irq_handler = NULL;
+
+            curr_irq_handler_list_idx--;
+        }
+    }
 }
 
 static int irqchip_init(void)

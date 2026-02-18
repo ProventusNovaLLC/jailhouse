@@ -13,8 +13,10 @@
  * the COPYING file in the top-level directory.
  */
 
+#include <asm/irqchip.h>
 #include <asm/mtk-common.h>
 #include <jailhouse/cell.h>
+#include <jailhouse/control.h>
 #include <jailhouse/paging.h>
 #include <jailhouse/percpu.h>
 #include <jailhouse/printk.h>
@@ -197,6 +199,9 @@
 #define EINT_SIZE  (0x00001000)
 #define REG_SIZE   (sizeof (u32))
 
+#define EINT_IRQ_ID  267        /* SPI interrupt for EINT's. */
+
+
 /* The following two macro's are required to customize the common macro's. */
 #define REG_DIST_IDX_SHIFT  (2)
 #define REG_NAME(_name)     EINT_OFFSET_ ## _name
@@ -294,7 +299,52 @@ static const access_descr_map_t  eint_access_descr_map [] =
     }
 };
 
+static const irq_descr_map_t  eint_irq_status_map [] =
+{
+    {
+        .reg  = REG_NAME (STA_0),
+        .size = REG_SIZE,
+        .mask = 0xffffffff,
+    },
+    {
+        .reg  = REG_NAME (STA_1),
+        .size = REG_SIZE,
+        .mask = 0xffffffff,
+    },
+    {
+        .reg  = REG_NAME (STA_2),
+        .size = REG_SIZE,
+        .mask = 0xffffffff,
+    },
+    {
+        .reg  = REG_NAME (STA_3),
+        .size = REG_SIZE,
+        .mask = 0xffffffff,
+    },
+    {
+        .reg  = REG_NAME (STA_4),
+        .size = REG_SIZE,
+        .mask = 0xffffffff,
+    },
+    {
+        .reg  = REG_NAME (STA_5),
+        .size = REG_SIZE,
+        .mask = 0xffffffff,
+    },
+    {
+        .reg  = REG_NAME (STA_6),
+        .size = REG_SIZE,
+        .mask = 0xffffffff,
+    },
+    {
+        .reg  = REG_NAME (STA_7),
+        .size = REG_SIZE,
+        .mask = 0xffffffff,
+    },
+};
+
 static const u32 eint_access_descr_map_size = ARRAY_SIZE (eint_access_descr_map);
+static const u32 eint_irq_status_map_size   = ARRAY_SIZE (eint_irq_status_map);
 
 
 static spinlock_t lock;
@@ -319,6 +369,8 @@ static enum mmio_result eint_handle_access (void*                arg,
 
 static int get_phys_addr (struct cell*    cell,
                           unsigned long*  phys_addr);
+
+static bool irq_handler(u16 irq_id);
 
 
 static u32 one_bit_per_pin (access_descr_t  access_descr)
@@ -522,6 +574,64 @@ static int get_phys_addr (struct cell*    cell,
     return (0);
 }                          
 
+static bool irq_handler (u16 irq_id)
+{
+    u32          eint_sta;
+    size_t       idx = 0;
+    struct cell* cell;
+
+
+    if ((virt_addr == NULL)      ||
+        (irq_id != EINT_IRQ_ID))
+	{
+        return (false);
+    }
+
+    while (idx < eint_irq_status_map_size)
+    {
+        /* Find the source for the EINT interrupt. */
+        eint_sta = mmio_read32 ((void*) (((unsigned long) virt_addr) + eint_irq_status_map [idx].reg)) & eint_irq_status_map [idx].mask;
+        if (eint_sta != 0)
+        {
+            /* We found an EINT status which indicated an asserted interrupt. */
+            break;
+        }
+
+        idx++;
+    }
+
+    if (idx >= eint_irq_status_map_size)
+    {
+        /* Didn't find an EINT source. Let the standard */
+        /* IRQ handler do the work.                     */
+        return (false);
+    }
+
+    /* Ok, let's now find the cell which is configured to handle this EINT IRQ. */
+    for_each_cell (cell)
+    {
+        /* The cell must have the EINT IRQ enabled as well as */
+        /* have the specific EINT interrupt source enabled.   */
+        if (((cell->arch.irq_bitmap [irq_id / 32] & (1 << (irq_id % 32))) != 0) &&
+            ((cell->arch.eint_bitmap [idx] & eint_sta) != 0))
+        {
+            /* Found a cell which can handle this EINT interrupt. */
+            break;
+        }
+    }
+
+    if (cell == NULL)
+    {
+        /* Didn't find a cell. Let the standard */
+        /* IRQ handler do the work.             */
+        return (false);
+    }
+
+    irqchip_set_pending (public_per_cpu (first_cpu (cell->cpu_set)), irq_id);
+
+    return (true);
+}
+
 static int mt8370_eint_cell_init (struct cell*  cell)
 {
 	size_t                         pos;
@@ -637,11 +747,25 @@ static int mt8370_eint_init (void)
             }
         }
 
+        ret = irqchip_register_irq_handler (EINT_IRQ_ID, irq_handler);
+        if (ret != 0)
+        {
+		    /* Cleanup if cell IRQ handler registration failed. */
+            if (virt_addr != NULL)
+            {
+                paging_unmap_device (phys_addr, virt_addr, EINT_SIZE);
+
+                virt_addr = NULL;
+            }
+        }
+
     	ret = mt8370_eint_cell_init (&root_cell);
 
     	if (ret != 0)
 	    {
 		    /* Cleanup if cell initialization failed. */
+            irqchip_unregister_irq_handler (EINT_IRQ_ID);
+
     		if (virt_addr != NULL)
 	    	{
                 paging_unmap_device (phys_addr, virt_addr, EINT_SIZE);
@@ -658,6 +782,8 @@ static void mt8370_eint_shutdown (void)
 {
     unsigned long phys_addr;
 
+
+    irqchip_unregister_irq_handler (EINT_IRQ_ID);
 
 	if (virt_addr != NULL)
 	{

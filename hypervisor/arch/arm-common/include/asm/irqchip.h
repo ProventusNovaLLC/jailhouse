@@ -101,5 +101,13 @@ void irqchip_trigger_external_irq(u16 irq_id);
 
 bool irqchip_irq_in_cell(struct cell *cell, unsigned int irq_id);
 
+/* The IRQ handler function shall return true if it injected the IRQ */
+/* into a cell, false otherwise.                                     */
+typedef bool (*irq_handler_fct)(u16 irq_id);
+
+/* One cannot register a SGI or the maintenance IRQ. */
+int irqchip_register_irq_handler(u16 irq_id, irq_handler_fct irq_handler);
+void irqchip_unregister_irq_handler(u16 irq_id);
+
 #endif /* __ASSEMBLY__ */
 #endif /* _JAILHOUSE_ASM_IRQCHIP_H */
