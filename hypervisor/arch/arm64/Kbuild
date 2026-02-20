@@ -34,4 +34,8 @@ endif
 ifeq ($(CONFIG_SOC),mt8370)
 lib-y += mtk-mt8370-eint.o mtk-mt8370-gpio.o
 endif
+
+ifeq ($(CONFIG_SOC),mt8390)
+lib-y += mtk-mt8390-eint.o mtk-mt8390-gpio.o
+endif
 endif
