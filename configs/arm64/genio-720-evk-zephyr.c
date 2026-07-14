@@ -1,10 +1,11 @@
 /*
- * GENIO-510-EVK target - zephyr
+ * GENIO-720-EVK target - zephyr
  *
  * Copyright 2025 MediaTek
  *
  * Authors:
  *   Felix Freimann <felix.freimann@mediatek.com>
+ *   Andres Campos <andres@proventusnova.com>
  *
  * This work is licensed under the terms of the GNU GPL, version 2.  See
  * the COPYING file in the top-level directory.
@@ -16,9 +17,9 @@
 struct {
 	struct jailhouse_cell_desc cell;
 	__u64 cpus[1];
-	struct jailhouse_memory mem_regions[3];
+	struct jailhouse_memory mem_regions[4];
 	struct jailhouse_irqchip irqchips[2];
-	struct jailhouse_vendor vendors[3];
+	struct jailhouse_vendor vendors[5];
 } __attribute__((packed)) config = {
 	.cell = {
 		.signature = JAILHOUSE_CELL_DESC_SIGNATURE,
@@ -51,6 +52,15 @@ struct {
         {
 			.phys_start = 0x11002000,
 			.virt_start = 0x11002000,
+			.size = 0x1000,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_IO | JAILHOUSE_MEM_ROOTSHARED | JAILHOUSE_MEM_IO_32,
+		},
+		/* SPI1 to the LoRa radio (controller at page offset 0x800;
+		 * whole page mapped, nothing else lives at 0x11011000)
+		 */
+		{
+			.phys_start = 0x11011000,
+			.virt_start = 0x11011000,
 			.size = 0x1000,
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_IO | JAILHOUSE_MEM_ROOTSHARED | JAILHOUSE_MEM_IO_32,
 		},
@@ -110,6 +120,22 @@ struct {
 			.mtk_gpio.pin_base   = 32,
 			.mtk_gpio.pin_bitmap = {
 				0x00000146, 0x00000000, 0x00000000, 0x00000000	/* Pins 33 & 34 for UART1; GPIO 38 & 40 */
+			}
+		},
+		{
+			.type = JAILHOUSE_VENDOR_MTK_EINT,
+			.mtk_eint.address    = 0x1000b000,
+			.mtk_eint.pin_base   = 64,
+			.mtk_eint.pin_bitmap = {
+				0x00000000, 0x00004000, 0x00000000, 0x00000000	/* EINT 110 = LoRa DIO1 */
+			}
+		},
+		{
+			.type = JAILHOUSE_VENDOR_MTK_GPIO,
+			.mtk_gpio.address    = 0x10005000,
+			.mtk_gpio.pin_base   = 64,
+			.mtk_gpio.pin_bitmap = {
+				0x00001e00, 0x00007000, 0x00000000, 0x00000000	/* 73-76 SPI1 CS(GPIO)/CLK/MOSI/MISO; 108-110 LoRa reset/busy/dio1 */
 			}
 		}
 /*
