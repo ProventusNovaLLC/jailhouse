@@ -18,8 +18,8 @@ struct {
 	struct jailhouse_cell_desc cell;
 	__u64 cpus[1];
 	struct jailhouse_memory mem_regions[4];
-	struct jailhouse_irqchip irqchips[2];
-	struct jailhouse_vendor vendors[5];
+	struct jailhouse_irqchip irqchips[1];
+	struct jailhouse_vendor vendors[3];
 } __attribute__((packed)) config = {
 	.cell = {
 		.signature = JAILHOUSE_CELL_DESC_SIGNATURE,
@@ -80,38 +80,39 @@ struct {
 	},
 
 	.irqchips = {
-		/* GIC */
+		/* GIC: UART1 (SPI 398 -> INTID 430) and SPI1 (SPI 460 ->
+		 * INTID 492, word 2 bit 12). The inmate polls the SPI status
+		 * instead of taking the interrupt, but owning the INTID here
+		 * revokes it from the root cell so the still-bound Linux
+		 * spi-mt65xx ISR cannot race the inmate for the read-to-clear
+		 * status register. No EINT interrupt is routed: on this SoC
+		 * (mt8189) all five EINT instances share one GIC line the
+		 * Linux root cell depends on; the inmate detects GPIO edges
+		 * by polling instead.
+		 */
 		{
 			.address = 0x0c000000,
 			.pin_base = 416,
 			.pin_bitmap = {
-				0x00004000, 0x00000000, 0x00000000, 0x00000000
-			},
-		},
-		{
-			.address    = 0x0c000000,
-			.pin_base   = 256,
-			.pin_bitmap = {
-				0x00000800, 0x00000000, 0x00000000, 0x00000000	/* EINT IRQ --> SPI 235+32 */
+				0x00004000, 0x00000000, 0x00001000, 0x00000000
 			},
 		},
 	},
 
 	.vendors = {
+		/* EINT on mt8189 is five per-cluster instances with a per-pad
+		 * (instance, index) map, NOT the single mt8390-style block at
+		 * 0x1000b000 this config used to name. This entry grants
+		 * instance 0 ("eint-e" @ 0x11ce0000) local index 46 = pad 110
+		 * (LoRa DIO1) for the future dedicated-EINT port; the current
+		 * inmate polls the GPIO instead and never touches it.
+		 */
 		{
 			.type = JAILHOUSE_VENDOR_MTK_EINT,
-			.mtk_eint.address    = 0x1000b000,
+			.mtk_eint.address    = 0x11ce0000,
 			.mtk_eint.pin_base   = 32,
 			.mtk_eint.pin_bitmap = {
-				0x00000140, 0x00000000, 0x00000000, 0x00000000	/* GPIO 38 & 40 */
-			}
-		},
-		{
-			.type = JAILHOUSE_VENDOR_MTK_EINT,
-			.mtk_eint.address    = 0x1000b000,
-			.mtk_eint.pin_base   = 128,
-			.mtk_eint.pin_bitmap = {
-				0x00000000, 0x00000100, 0x00000000, 0x00000000  /* [ffr] FIX ME! EINT 168 */
+				0x00004000, 0x00000000, 0x00000000, 0x00000000	/* local line 46 = pad 110 DIO1 */
 			}
 		},
 		{
@@ -120,14 +121,6 @@ struct {
 			.mtk_gpio.pin_base   = 32,
 			.mtk_gpio.pin_bitmap = {
 				0x00000146, 0x00000000, 0x00000000, 0x00000000	/* Pins 33 & 34 for UART1; GPIO 38 & 40 */
-			}
-		},
-		{
-			.type = JAILHOUSE_VENDOR_MTK_EINT,
-			.mtk_eint.address    = 0x1000b000,
-			.mtk_eint.pin_base   = 64,
-			.mtk_eint.pin_bitmap = {
-				0x00000000, 0x00004000, 0x00000000, 0x00000000	/* EINT 110 = LoRa DIO1 */
 			}
 		},
 		{
