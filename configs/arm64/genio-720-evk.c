@@ -19,7 +19,7 @@
 struct {
 	struct jailhouse_system header;
 	__u64 cpus[1];
-	struct jailhouse_memory mem_regions[19];
+	struct jailhouse_memory mem_regions[20];
 	struct jailhouse_irqchip irqchips[8];
 	struct jailhouse_pci_device pci_devices[1];
 	struct jailhouse_vendor vendors[4];
@@ -327,6 +327,15 @@ struct {
 			.size = 0x2000,
 			.flags = JAILHOUSE_MEM_READ,
 		},
+		/* output section peer 2 (unused capacity; the stock
+		 * ivshmem-demo assumes the canonical 3-peer layout)
+		 */
+		{
+			.phys_start = 0x47F0E000,
+			.virt_start = 0x47F0E000,
+			.size = 0x2000,
+			.flags = JAILHOUSE_MEM_READ,
+		},
 	},
 
 	.irqchips = {
@@ -405,7 +414,7 @@ struct {
 			.bar_mask = JAILHOUSE_IVSHMEM_BAR_MASK_INTX,
 			.shmem_regions_start = 15,
 			.shmem_dev_id = 0,
-			.shmem_peers = 2,
+			.shmem_peers = 3,
 			.shmem_protocol = JAILHOUSE_SHMEM_PROTO_UNDEFINED,
 		},
 	},

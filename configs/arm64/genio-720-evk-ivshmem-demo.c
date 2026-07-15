@@ -18,7 +18,7 @@
 struct {
 	struct jailhouse_cell_desc cell;
 	__u64 cpus[1];
-	struct jailhouse_memory mem_regions[7];
+	struct jailhouse_memory mem_regions[8];
 	struct jailhouse_irqchip irqchips[1];
 	struct jailhouse_pci_device pci_devices[1];
 } __attribute__((packed)) config = {
@@ -28,7 +28,8 @@ struct {
 		.architecture = JAILHOUSE_ARM64,
 		.name = "ivshmem-demo",
 		.flags = JAILHOUSE_CELL_PASSIVE_COMMREG |
-			 JAILHOUSE_CELL_VIRTUAL_CONSOLE_PERMITTED,
+			 JAILHOUSE_CELL_VIRTUAL_CONSOLE_PERMITTED |
+			 JAILHOUSE_CELL_VIRTUAL_CONSOLE_ACTIVE,
 
 		.cpu_set_size       = sizeof(config.cpus),
 		.num_memory_regions = ARRAY_SIZE(config.mem_regions),
@@ -42,11 +43,13 @@ struct {
 		 */
 		.vpci_irq_base = 576,
 
+		/* No UART console: the inmate lib spins on a stuck UART
+		 * (MTK 8250 highspeed quirks); the virtual console routes
+		 * every printk through the debug hypercall instead, read
+		 * on the root side with `jailhouse console`.
+		 */
 		.console = {
-			.address = 0x11002000,
-			.divider = 0x0e,		/* 26 MHz / 16 / 14 ~= 115200 */
-			.type = JAILHOUSE_CON_TYPE_8250,
-			.flags = JAILHOUSE_CON_ACCESS_MMIO | JAILHOUSE_CON_REGDIST_4,
+			.type = JAILHOUSE_CON_TYPE_NONE,
 		},
 	},
 
@@ -88,6 +91,13 @@ struct {
 			.size = 0x2000,
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE |
 				JAILHOUSE_MEM_ROOTSHARED,
+		},
+		/* output section peer 2 (unused capacity, 3-peer layout) */
+		{
+			.phys_start = 0x47F0E000,
+			.virt_start = 0x47F0E000,
+			.size = 0x2000,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_ROOTSHARED,
 		},
 		/* UART1 (console) */
 		{
@@ -135,7 +145,7 @@ struct {
 			.bar_mask = JAILHOUSE_IVSHMEM_BAR_MASK_INTX,
 			.shmem_regions_start = 0,
 			.shmem_dev_id = 1,
-			.shmem_peers = 2,
+			.shmem_peers = 3,
 			.shmem_protocol = JAILHOUSE_SHMEM_PROTO_UNDEFINED,
 		},
 	},
