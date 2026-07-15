@@ -64,11 +64,13 @@ struct {
 			.size = 0x1000,
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_IO | JAILHOUSE_MEM_ROOTSHARED | JAILHOUSE_MEM_IO_32,
 		},
-		/* Inmate memory: 0x45000000 - 0x48000000 (48 MB) */
+		/* Inmate memory: 0x45000000 - 0x47F00000 (47 MB; the final MB
+		 * of the original window is the ivshmem shared-memory block)
+		 */
 		{
 			.phys_start = 0x45000000,
 			.virt_start = CONFIG_INMATE_BASE,
-			.size = 0x03000000,   // 48 MB
+			.size = 0x02F00000,   // 47 MB
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_EXECUTE | JAILHOUSE_MEM_LOADABLE,
 		},
 		/* Communication region */

@@ -19,8 +19,9 @@
 struct {
 	struct jailhouse_system header;
 	__u64 cpus[1];
-	struct jailhouse_memory mem_regions[15];
+	struct jailhouse_memory mem_regions[19];
 	struct jailhouse_irqchip irqchips[8];
+	struct jailhouse_pci_device pci_devices[1];
 	struct jailhouse_vendor vendors[4];
 } __attribute__((packed)) config = {
 	.header = {
@@ -39,6 +40,15 @@ struct {
 			.flags = JAILHOUSE_CON_ACCESS_MMIO | JAILHOUSE_CON_REGDIST_4,
 		},
 		.platform_info = {
+			/* Virtual PCI for ivshmem: ECAM window above the 8 GB
+			 * DRAM top (a true guest-physical hole, emulated - no
+			 * backing memory region needed). Domain 1 keeps it off
+			 * the real PCIe (domain 0).
+			 */
+			.pci_mmconfig_base = 0x240000000,
+			.pci_mmconfig_end_bus = 0,
+			.pci_is_virtual = 1,
+			.pci_domain = 1,
 			.arm = {
 				.gic_version = 3,
 				.gicd_base = 0x0c000000,
@@ -54,7 +64,13 @@ struct {
 			//.smc_ids_size = ARRAY_SIZE(config.smc_ids),
 			.num_memory_regions = ARRAY_SIZE(config.mem_regions),
 			.num_irqchips = ARRAY_SIZE(config.irqchips),
+			.num_pci_devices = ARRAY_SIZE(config.pci_devices),
 			.num_vendors = ARRAY_SIZE(config.vendors),
+			/* Root peer INTx block: SPIs 580-583 = INTIDs 612-615,
+			 * inside the unused 554-596 gap (Linux DT uses nothing
+			 * there; nearest neighbors are SPI 553 and 597).
+			 */
+			.vpci_irq_base = 580,
 		},
 	},
 
@@ -155,11 +171,16 @@ struct {
 						JAILHOUSE_MEM_EXECUTE,
 		},
 
-		/* Inmate memory: 0x45000000 - 0x48000000 (48 MB) */
+		/* Inmate memory: 0x45000000 - 0x47F00000 (47 MB).
+		 * The final 1 MB of the original 48 MB window (0x47F00000-
+		 * 0x47FFFFFF) is donated to the ivshmem shared-memory
+		 * regions below - it stays inside the kernel's
+		 * jailhouse@44000000 reservation, so no DT change needed.
+		 */
 		{
 			.phys_start = 0x45000000,
 			.virt_start = 0x45000000,
-			.size = 0x03000000,   // 48 MB
+			.size = 0x02F00000,   // 47 MB
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_EXECUTE,
 		},
 
@@ -242,7 +263,11 @@ struct {
 		{
 			.phys_start = 0x60800000,
 			.virt_start = 0x60800000,
-			.size       = 0x0F9F7E000,
+			/* Was 0x0F9F7E000, which ran ~424 MB past the start of
+			 * the high bank below (region overlap). 0x0DF7FE000
+			 * matches this block's own comment: ends 0x13FFFDFFF.
+			 */
+			.size       = 0x0DF7FE000,
 			.flags      = JAILHOUSE_MEM_READ |
 						JAILHOUSE_MEM_WRITE |
 						JAILHOUSE_MEM_EXECUTE,
@@ -264,6 +289,43 @@ struct {
 			.flags      = JAILHOUSE_MEM_READ |
 						JAILHOUSE_MEM_WRITE |
 						JAILHOUSE_MEM_EXECUTE,
+		},
+
+		/*
+		 * IVSHMEM shared-memory regions (root = peer 0, demo/zephyr
+		 * inmate = peer 1), carved from the last 1 MB of the former
+		 * inmate window. Layout per ivshmem-v2: state table (RO,
+		 * hypervisor-written), common R/W section, then one output
+		 * section per peer (writable only by its owner).
+		 * shmem_regions_start below points at the state table.
+		 */
+		/* state table */
+		{
+			.phys_start = 0x47F00000,
+			.virt_start = 0x47F00000,
+			.size = 0x1000,
+			.flags = JAILHOUSE_MEM_READ,
+		},
+		/* read/write section */
+		{
+			.phys_start = 0x47F01000,
+			.virt_start = 0x47F01000,
+			.size = 0x9000,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE,
+		},
+		/* output section peer 0 (root) */
+		{
+			.phys_start = 0x47F0A000,
+			.virt_start = 0x47F0A000,
+			.size = 0x2000,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE,
+		},
+		/* output section peer 1 (inmate) */
+		{
+			.phys_start = 0x47F0C000,
+			.virt_start = 0x47F0C000,
+			.size = 0x2000,
+			.flags = JAILHOUSE_MEM_READ,
 		},
 	},
 
@@ -332,6 +394,20 @@ struct {
 				0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff
             },
         },
+	},
+
+	.pci_devices = {
+		/* IVSHMEM 0001:00:00.0, root side (peer 0) */
+		{
+			.type = JAILHOUSE_PCI_TYPE_IVSHMEM,
+			.domain = 1,
+			.bdf = 0 << 3,
+			.bar_mask = JAILHOUSE_IVSHMEM_BAR_MASK_INTX,
+			.shmem_regions_start = 15,
+			.shmem_dev_id = 0,
+			.shmem_peers = 2,
+			.shmem_protocol = JAILHOUSE_SHMEM_PROTO_UNDEFINED,
+		},
 	},
 
 	.vendors = {
