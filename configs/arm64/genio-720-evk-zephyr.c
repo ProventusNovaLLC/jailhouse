@@ -17,8 +17,9 @@
 struct {
 	struct jailhouse_cell_desc cell;
 	__u64 cpus[1];
-	struct jailhouse_memory mem_regions[4];
-	struct jailhouse_irqchip irqchips[1];
+	struct jailhouse_memory mem_regions[9];
+	struct jailhouse_irqchip irqchips[2];
+	struct jailhouse_pci_device pci_devices[1];
 	struct jailhouse_vendor vendors[3];
 } __attribute__((packed)) config = {
 	.cell = {
@@ -31,9 +32,13 @@ struct {
 		.cpu_set_size       = sizeof(config.cpus),
 		.num_memory_regions = ARRAY_SIZE(config.mem_regions),
 		.num_irqchips       = ARRAY_SIZE(config.irqchips),
+		.num_pci_devices    = ARRAY_SIZE(config.pci_devices),
 		.num_vendors        = ARRAY_SIZE(config.vendors),
 
 		.cpu_reset_address = CONFIG_INMATE_BASE,
+
+		/* ivshmem INTx block: SPIs 576-579 = INTIDs 608-611 */
+		.vpci_irq_base = 576,
 
 		.console = {
 			.address = 0x11002000,
@@ -79,6 +84,46 @@ struct {
 			.size = 0x00001000,
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_COMM_REGION,
 		},
+		/* IVSHMEM regions (this cell = peer 1; same order and
+		 * addresses as the root cell, canonical 3-peer layout)
+		 */
+		/* state table */
+		{
+			.phys_start = 0x47F00000,
+			.virt_start = 0x47F00000,
+			.size = 0x1000,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_ROOTSHARED,
+		},
+		/* read/write section */
+		{
+			.phys_start = 0x47F01000,
+			.virt_start = 0x47F01000,
+			.size = 0x9000,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE |
+				JAILHOUSE_MEM_ROOTSHARED,
+		},
+		/* output section peer 0 (root) */
+		{
+			.phys_start = 0x47F0A000,
+			.virt_start = 0x47F0A000,
+			.size = 0x2000,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_ROOTSHARED,
+		},
+		/* output section peer 1 (this cell) */
+		{
+			.phys_start = 0x47F0C000,
+			.virt_start = 0x47F0C000,
+			.size = 0x2000,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE |
+				JAILHOUSE_MEM_ROOTSHARED,
+		},
+		/* output section peer 2 (unused capacity) */
+		{
+			.phys_start = 0x47F0E000,
+			.virt_start = 0x47F0E000,
+			.size = 0x2000,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_ROOTSHARED,
+		},
 	},
 
 	.irqchips = {
@@ -98,6 +143,28 @@ struct {
 			.pin_bitmap = {
 				0x00004000, 0x00000000, 0x00001000, 0x00000000
 			},
+		},
+		/* GIC: ivshmem INTx, INTIDs 608-611 */
+		{
+			.address = 0x0c000000,
+			.pin_base = 608,
+			.pin_bitmap = {
+				0x0000000f, 0x00000000, 0x00000000, 0x00000000
+			},
+		},
+	},
+
+	.pci_devices = {
+		/* IVSHMEM 0001:00:00.0, zephyr side (peer 1) */
+		{
+			.type = JAILHOUSE_PCI_TYPE_IVSHMEM,
+			.domain = 1,
+			.bdf = 0 << 3,
+			.bar_mask = JAILHOUSE_IVSHMEM_BAR_MASK_INTX,
+			.shmem_regions_start = 4,
+			.shmem_dev_id = 1,
+			.shmem_peers = 3,
+			.shmem_protocol = JAILHOUSE_SHMEM_PROTO_UNDEFINED,
 		},
 	},
 

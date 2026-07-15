@@ -40,12 +40,13 @@ struct {
 			.flags = JAILHOUSE_CON_ACCESS_MMIO | JAILHOUSE_CON_REGDIST_4,
 		},
 		.platform_info = {
-			/* Virtual PCI for ivshmem: ECAM window above the 8 GB
-			 * DRAM top (a true guest-physical hole, emulated - no
-			 * backing memory region needed). Domain 1 keeps it off
-			 * the real PCIe (domain 0).
+			/* Virtual PCI for ivshmem: ECAM window inside the
+			 * no-map SCP reservation hole (pure emulation, the
+			 * backing memory is never accessed; a sub-4G base
+			 * keeps 32-bit devicetrees usable in the cells).
+			 * Domain 1 keeps it off the real PCIe (domain 0).
 			 */
-			.pci_mmconfig_base = 0x240000000,
+			.pci_mmconfig_base = 0x50000000,
 			.pci_mmconfig_end_bus = 0,
 			.pci_is_virtual = 1,
 			.pci_domain = 1,
