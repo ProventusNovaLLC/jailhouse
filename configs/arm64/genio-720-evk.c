@@ -40,13 +40,20 @@ struct {
 			.flags = JAILHOUSE_CON_ACCESS_MMIO | JAILHOUSE_CON_REGDIST_4,
 		},
 		.platform_info = {
-			/* Virtual PCI for ivshmem: ECAM window inside the
-			 * no-map SCP reservation hole (pure emulation, the
-			 * backing memory is never accessed; a sub-4G base
-			 * keeps 32-bit devicetrees usable in the cells).
-			 * Domain 1 keeps it off the real PCIe (domain 0).
+			/* Virtual PCI for ivshmem. The ECAM lives in the low
+			 * MMIO band at 0x20000000 (a hole carved from the
+			 * region below - see the DRAM/MMIO region): sub-4G so
+			 * the cells' 32-bit devicetrees can express it, and
+			 * clear of every Linux reserved-memory node so the
+			 * root cell's own pci-host-generic (created once
+			 * CONFIG_OF_OVERLAY is on) can claim its MMIO windows
+			 * without a resource collision. 0x50000000 could not
+			 * be used: it sits inside the no-map scp_mem reserve,
+			 * which the emulated ECAM ignored but the real Linux
+			 * host controller rejected. Domain 1 keeps it off the
+			 * real PCIe (domain 0).
 			 */
-			.pci_mmconfig_base = 0x50000000,
+			.pci_mmconfig_base = 0x20000000,
 			.pci_mmconfig_end_bus = 0,
 			.pci_is_virtual = 1,
 			.pci_domain = 1,
@@ -131,11 +138,18 @@ struct {
 			.size = 0x0fff4000,
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_IO
 		},
-		/* DRAM:  0x0000'0000'2000'0000 - 0x0000'0000'4000'0000 */
+		/* Low MMIO / PCIe aperture: 0x20000000 - 0x40000000, with a
+		 * 2 MB hole at the base (0x20000000 - 0x201fffff) carved out
+		 * for the emulated ivshmem ECAM + BAR window. The hole is
+		 * unmapped here so accesses trap to the hypervisor's vPCI
+		 * model instead of passing through. Nothing in Linux uses
+		 * 0x20000000-0x201fffff (the real PCIe outbound is at
+		 * 0x30000000, still inside the mapped remainder).
+		 */
 		{
-			.phys_start = 0x20000000,
-			.virt_start = 0x20000000,
-			.size = 0x20000000,
+			.phys_start = 0x20200000,
+			.virt_start = 0x20200000,
+			.size = 0x1fe00000,
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_EXECUTE
 		},
 
