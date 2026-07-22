@@ -19,7 +19,7 @@
 struct {
 	struct jailhouse_system header;
 	__u64 cpus[1];
-	struct jailhouse_memory mem_regions[20];
+	struct jailhouse_memory mem_regions[21];
 	struct jailhouse_irqchip irqchips[8];
 	struct jailhouse_pci_device pci_devices[1];
 	struct jailhouse_vendor vendors[4];
@@ -264,6 +264,23 @@ struct {
 						JAILHOUSE_MEM_EXECUTE,
 		},
 
+		/* snd-dma-mem-region@60000000: the audio AFE's shared-dma-pool
+		 * (no-map, so it is CPU-touched only via memremap). The sound
+		 * driver's dma_alloc_from_dev_coherent() memsets allocations
+		 * here, so the root cell must map it: without this region the
+		 * first audio allocation after jailhouse-enable is an unhandled
+		 * data write at 0x60000000 and the hypervisor parks the CPU.
+		 * Other no-map pools (scp, sspm, secmon) stay excluded - they
+		 * are only written before the hypervisor is enabled.
+		 */
+		{
+			.phys_start = 0x60000000,
+			.virt_start = 0x60000000,
+			.size       = 0x00800000,
+			.flags      = JAILHOUSE_MEM_READ |
+						JAILHOUSE_MEM_WRITE,
+		},
+
 		/*
 		* SYSTEM RAM BLOCK 8
 		* 60800000-13fffdfff
@@ -427,7 +444,7 @@ struct {
 			.domain = 1,
 			.bdf = 0 << 3,
 			.bar_mask = JAILHOUSE_IVSHMEM_BAR_MASK_INTX,
-			.shmem_regions_start = 15,
+			.shmem_regions_start = 16,
 			.shmem_dev_id = 0,
 			.shmem_peers = 3,
 			.shmem_protocol = JAILHOUSE_SHMEM_PROTO_UNDEFINED,
