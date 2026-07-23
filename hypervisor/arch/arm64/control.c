@@ -22,6 +22,7 @@ void arm_cpu_reset(unsigned long pc, bool aarch32)
 {
 	u64 hcr_el2;
 	u64 fpexc32_el2;
+	u64 pfr0_el1;
 
 	/* put the cpu in a reset state */
 	/* AARCH64_TODO: handle big endian support */
@@ -58,9 +59,19 @@ void arm_cpu_reset(unsigned long pc, bool aarch32)
 	arm_write_sysreg(TTBR1_EL1, 0);
 	arm_write_sysreg(VBAR_EL1, 0);
 
-	arm_read_sysreg(FPEXC32_EL2, fpexc32_el2);
-	fpexc32_el2 |= FPEXC_EL2_EN_BIT;
-	arm_write_sysreg(FPEXC32_EL2, fpexc32_el2);
+	/* FPEXC32_EL2 exists only when EL1 supports AArch32
+	 * (ID_AA64PFR0_EL1.EL1 == 0b0010); on AArch64-only cores the access
+	 * is UNDEFINED and aborts at EL2. On heterogeneous SoCs this differs
+	 * per core: e.g. Genio 720's A55s implement AArch32 at EL1 but its
+	 * A78s do not, so parking/resetting an A78 crashed the hypervisor
+	 * inside its own panic path.
+	 */
+	arm_read_sysreg(ID_AA64PFR0_EL1, pfr0_el1);
+	if (((pfr0_el1 >> 4) & 0xf) == 2) {
+		arm_read_sysreg(FPEXC32_EL2, fpexc32_el2);
+		fpexc32_el2 |= FPEXC_EL2_EN_BIT;
+		arm_write_sysreg(FPEXC32_EL2, fpexc32_el2);
+	}
 
 	/* wipe timer registers */
 	arm_write_sysreg(CNTP_CTL_EL0, 0);
