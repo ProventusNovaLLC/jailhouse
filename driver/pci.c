@@ -26,6 +26,14 @@
 #define of_overlay_remove(id)		of_overlay_destroy(*id)
 #endif
 
+/* Kernel 6.3 added a target-node parameter; NULL keeps the previous
+ * whole-tree behavior.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+#define of_overlay_fdt_apply(fdt, size, id) \
+	of_overlay_fdt_apply(fdt, size, id, NULL)
+#endif
+
 #include "pci.h"
 
 struct claimed_dev {

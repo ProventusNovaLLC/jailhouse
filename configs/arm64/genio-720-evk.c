@@ -19,8 +19,9 @@
 struct {
 	struct jailhouse_system header;
 	__u64 cpus[1];
-	struct jailhouse_memory mem_regions[15];
+	struct jailhouse_memory mem_regions[21];
 	struct jailhouse_irqchip irqchips[8];
+	struct jailhouse_pci_device pci_devices[1];
 	struct jailhouse_vendor vendors[4];
 } __attribute__((packed)) config = {
 	.header = {
@@ -39,6 +40,23 @@ struct {
 			.flags = JAILHOUSE_CON_ACCESS_MMIO | JAILHOUSE_CON_REGDIST_4,
 		},
 		.platform_info = {
+			/* Virtual PCI for ivshmem. The ECAM lives in the low
+			 * MMIO band at 0x20000000 (a hole carved from the
+			 * region below - see the DRAM/MMIO region): sub-4G so
+			 * the cells' 32-bit devicetrees can express it, and
+			 * clear of every Linux reserved-memory node so the
+			 * root cell's own pci-host-generic (created once
+			 * CONFIG_OF_OVERLAY is on) can claim its MMIO windows
+			 * without a resource collision. 0x50000000 could not
+			 * be used: it sits inside the no-map scp_mem reserve,
+			 * which the emulated ECAM ignored but the real Linux
+			 * host controller rejected. Domain 1 keeps it off the
+			 * real PCIe (domain 0).
+			 */
+			.pci_mmconfig_base = 0x20000000,
+			.pci_mmconfig_end_bus = 0,
+			.pci_is_virtual = 1,
+			.pci_domain = 1,
 			.arm = {
 				.gic_version = 3,
 				.gicd_base = 0x0c000000,
@@ -54,7 +72,13 @@ struct {
 			//.smc_ids_size = ARRAY_SIZE(config.smc_ids),
 			.num_memory_regions = ARRAY_SIZE(config.mem_regions),
 			.num_irqchips = ARRAY_SIZE(config.irqchips),
+			.num_pci_devices = ARRAY_SIZE(config.pci_devices),
 			.num_vendors = ARRAY_SIZE(config.vendors),
+			/* Root peer INTx block: SPIs 580-583 = INTIDs 612-615,
+			 * inside the unused 554-596 gap (Linux DT uses nothing
+			 * there; nearest neighbors are SPI 553 and 597).
+			 */
+			.vpci_irq_base = 580,
 		},
 	},
 
@@ -114,11 +138,18 @@ struct {
 			.size = 0x0fff4000,
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_IO
 		},
-		/* DRAM:  0x0000'0000'2000'0000 - 0x0000'0000'4000'0000 */
+		/* Low MMIO / PCIe aperture: 0x20000000 - 0x40000000, with a
+		 * 2 MB hole at the base (0x20000000 - 0x201fffff) carved out
+		 * for the emulated ivshmem ECAM + BAR window. The hole is
+		 * unmapped here so accesses trap to the hypervisor's vPCI
+		 * model instead of passing through. Nothing in Linux uses
+		 * 0x20000000-0x201fffff (the real PCIe outbound is at
+		 * 0x30000000, still inside the mapped remainder).
+		 */
 		{
-			.phys_start = 0x20000000,
-			.virt_start = 0x20000000,
-			.size = 0x20000000,
+			.phys_start = 0x20200000,
+			.virt_start = 0x20200000,
+			.size = 0x1fe00000,
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_EXECUTE
 		},
 
@@ -155,11 +186,16 @@ struct {
 						JAILHOUSE_MEM_EXECUTE,
 		},
 
-		/* Inmate memory: 0x45000000 - 0x48000000 (48 MB) */
+		/* Inmate memory: 0x45000000 - 0x47F00000 (47 MB).
+		 * The final 1 MB of the original 48 MB window (0x47F00000-
+		 * 0x47FFFFFF) is donated to the ivshmem shared-memory
+		 * regions below - it stays inside the kernel's
+		 * jailhouse@44000000 reservation, so no DT change needed.
+		 */
 		{
 			.phys_start = 0x45000000,
 			.virt_start = 0x45000000,
-			.size = 0x03000000,   // 48 MB
+			.size = 0x02F00000,   // 47 MB
 			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE | JAILHOUSE_MEM_EXECUTE,
 		},
 
@@ -228,6 +264,23 @@ struct {
 						JAILHOUSE_MEM_EXECUTE,
 		},
 
+		/* snd-dma-mem-region@60000000: the audio AFE's shared-dma-pool
+		 * (no-map, so it is CPU-touched only via memremap). The sound
+		 * driver's dma_alloc_from_dev_coherent() memsets allocations
+		 * here, so the root cell must map it: without this region the
+		 * first audio allocation after jailhouse-enable is an unhandled
+		 * data write at 0x60000000 and the hypervisor parks the CPU.
+		 * Other no-map pools (scp, sspm, secmon) stay excluded - they
+		 * are only written before the hypervisor is enabled.
+		 */
+		{
+			.phys_start = 0x60000000,
+			.virt_start = 0x60000000,
+			.size       = 0x00800000,
+			.flags      = JAILHOUSE_MEM_READ |
+						JAILHOUSE_MEM_WRITE,
+		},
+
 		/*
 		* SYSTEM RAM BLOCK 8
 		* 60800000-13fffdfff
@@ -242,7 +295,11 @@ struct {
 		{
 			.phys_start = 0x60800000,
 			.virt_start = 0x60800000,
-			.size       = 0x0F9F7E000,
+			/* Was 0x0F9F7E000, which ran ~424 MB past the start of
+			 * the high bank below (region overlap). 0x0DF7FE000
+			 * matches this block's own comment: ends 0x13FFFDFFF.
+			 */
+			.size       = 0x0DF7FE000,
 			.flags      = JAILHOUSE_MEM_READ |
 						JAILHOUSE_MEM_WRITE |
 						JAILHOUSE_MEM_EXECUTE,
@@ -264,6 +321,52 @@ struct {
 			.flags      = JAILHOUSE_MEM_READ |
 						JAILHOUSE_MEM_WRITE |
 						JAILHOUSE_MEM_EXECUTE,
+		},
+
+		/*
+		 * IVSHMEM shared-memory regions (root = peer 0, demo/zephyr
+		 * inmate = peer 1), carved from the last 1 MB of the former
+		 * inmate window. Layout per ivshmem-v2: state table (RO,
+		 * hypervisor-written), common R/W section, then one output
+		 * section per peer (writable only by its owner).
+		 * shmem_regions_start below points at the state table.
+		 */
+		/* state table */
+		{
+			.phys_start = 0x47F00000,
+			.virt_start = 0x47F00000,
+			.size = 0x1000,
+			.flags = JAILHOUSE_MEM_READ,
+		},
+		/* read/write section */
+		{
+			.phys_start = 0x47F01000,
+			.virt_start = 0x47F01000,
+			.size = 0x9000,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE,
+		},
+		/* output section peer 0 (root) */
+		{
+			.phys_start = 0x47F0A000,
+			.virt_start = 0x47F0A000,
+			.size = 0x2000,
+			.flags = JAILHOUSE_MEM_READ | JAILHOUSE_MEM_WRITE,
+		},
+		/* output section peer 1 (inmate) */
+		{
+			.phys_start = 0x47F0C000,
+			.virt_start = 0x47F0C000,
+			.size = 0x2000,
+			.flags = JAILHOUSE_MEM_READ,
+		},
+		/* output section peer 2 (unused capacity; the stock
+		 * ivshmem-demo assumes the canonical 3-peer layout)
+		 */
+		{
+			.phys_start = 0x47F0E000,
+			.virt_start = 0x47F0E000,
+			.size = 0x2000,
+			.flags = JAILHOUSE_MEM_READ,
 		},
 	},
 
@@ -332,6 +435,20 @@ struct {
 				0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff
             },
         },
+	},
+
+	.pci_devices = {
+		/* IVSHMEM 0001:00:00.0, root side (peer 0) */
+		{
+			.type = JAILHOUSE_PCI_TYPE_IVSHMEM,
+			.domain = 1,
+			.bdf = 0 << 3,
+			.bar_mask = JAILHOUSE_IVSHMEM_BAR_MASK_INTX,
+			.shmem_regions_start = 16,
+			.shmem_dev_id = 0,
+			.shmem_peers = 3,
+			.shmem_protocol = JAILHOUSE_SHMEM_PROTO_UNDEFINED,
+		},
 	},
 
 	.vendors = {
